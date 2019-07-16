@@ -59,6 +59,7 @@ const CrawlerInstagram = class {
 		// Init browser
 		this.browser = await puppeteer.launch({
 			headless: !this.interactive,
+			defaultViewport: {"width": 1024, "height": 768},
 			args: ['--lang=en-US', '--disk-cache-size=0']
 		});
 
@@ -67,6 +68,7 @@ const CrawlerInstagram = class {
 		await this.page.setExtraHTTPHeaders({
 			'Accept-Language': 'en-US'
 		});
+		console.log(`https://instagram.com/${input}`);
 		await this.page.goto(`https://instagram.com/${input}`, {
 			waitUntil: 'networkidle0'
 		});
@@ -99,28 +101,33 @@ const CrawlerInstagram = class {
 	// Get info in profil
 	async getInfoProfile() {
 		this.spinner.info('Get profile info!');
-		return this.page.evaluate(element => {
+		this.spinner.info('here');
+		await this.page.waitForSelector(element.numberPosts, {timeout: 5000});
+		let area_count_post = await this.page.$(element.numberPosts)
+		let numberPosts = await (await area_count_post.getProperty("innerText")).jsonValue();
+
+		this.page.evaluate(async element => {
 			return {
-				alias: document.querySelector(element.alias).innerText,
-				username: document.querySelector(element.username).innerText,
-				descriptionProfile: document.querySelector(element.descriptionProfile)
-					? document.querySelector(element.descriptionProfile).innerText
-					: '',
-				urlImgProfile: document
-					.querySelector(element.urlImgProfile)
-					.getAttribute('src'),
-				website: document.querySelector(element.website)
-					? document.querySelector(element.website).innerText
-					: null,
-				numberPosts: document.querySelector(element.numberPosts).innerText,
-				numberFollowers: document.querySelector(element.numberFollowers)
-					.innerText,
-				numberFollowing: document.querySelector(element.numberFollowing)
-					.innerText,
-				private: !!document.querySelector(element.isPrivate),
-				isOfficial: !!document.querySelector(element.isOfficial)
-			};
-		}, element);
+			alias: document.querySelector(element.alias).innerText,
+			username: document.querySelector(element.username).innerText,
+			descriptionProfile: document.querySelector(element.descriptionProfile)
+				? document.querySelector(element.descriptionProfile).innerText
+				: '',
+			urlImgProfile: document
+				.querySelector(element.urlImgProfile)
+				.getAttribute('src'),
+			website: document.querySelector(element.website)
+				? document.querySelector(element.website).innerText
+				: null,
+			numberFollowers: document.querySelector(element.numberFollowers)
+				.innerText,
+			numberFollowing: document.querySelector(element.numberFollowing)
+				.innerText,
+			private: !!document.querySelector(element.isPrivate),
+			isOfficial: !!document.querySelector(element.isOfficial),
+			numberPosts: numberPosts
+		};
+	}, element);
 	}
 
 	// Get data for each post
@@ -153,12 +160,12 @@ const CrawlerInstagram = class {
 		const listPost = [];
 
 		this.spinner.info('Crawl each post!');
-		for (const url of listPostUrl) {
+		for (let [i,url] of [...listPostUrl].entries()) {
 			const page = await this.browser.newPage();
 			await page.goto(`https://instagram.com${url}`, {
 				waitUntil: 'networkidle0'
 			});
-			this.spinner.info(`crawl -> ${url}`);
+			this.spinner.info(`crawl -> ${url} #${i}`);
 			const data = await page.evaluate(element => {
 				return {
 					url: element.url,
@@ -199,6 +206,7 @@ const CrawlerInstagram = class {
 				}
 			}
 			await page.close();
+			data.id=i;
 			listPost.push(data);
 		}
 		return listPost;
